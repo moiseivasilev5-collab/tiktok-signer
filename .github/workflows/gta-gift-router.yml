@@ -1,0 +1,33 @@
+name: GTA gift router tests
+
+on:
+  push:
+    paths:
+      - "examples/gta-san-andreas/**"
+      - "packages/tiktok-live/**"
+      - ".github/workflows/gta-gift-router.yml"
+  pull_request:
+    paths:
+      - "examples/gta-san-andreas/**"
+      - "packages/tiktok-live/**"
+      - ".github/workflows/gta-gift-router.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install TikTok LIVE package dependencies
+        working-directory: packages/tiktok-live
+        run: npm install
+      - name: Build and test TikTok LIVE package
+        working-directory: packages/tiktok-live
+        run: npm test
+      - name: Test GTA gift router
+        run: node --test examples/gta-san-andreas/gift-router.test.mjs
