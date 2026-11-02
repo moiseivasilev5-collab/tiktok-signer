@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#080b13">
+<title>MOISEY LIVE — 3D Runner</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080b13;color:#fff;font-family:system-ui,Arial;touch-action:none}
+#game{position:fixed;inset:0}canvas{display:block}
+.hud{position:fixed;inset:0;pointer-events:none;padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom);display:flex;flex-direction:column;justify-content:space-between}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding-top:10px}
+.brand{font-weight:1000;letter-spacing:2px;font-size:20px;text-shadow:0 2px 12px #000}.brand small{display:block;font-size:9px;letter-spacing:3px;color:#65eaff}
+.pill{background:#07111ddd;border:1px solid #39d7ee88;border-radius:14px;padding:7px 11px;font-size:12px;box-shadow:0 4px 20px #0008}
+.stats{display:flex;gap:7px}.stat b{display:block;font-size:18px}
+.bottom{display:flex;justify-content:space-between;align-items:end;padding-bottom:12px}
+.hint{font-size:11px;color:#d8e7f4;background:#07111dbb;padding:8px 11px;border-radius:12px;max-width:60%}
+.controls{display:flex;gap:8px;pointer-events:auto}.ctrl{border:1px solid #6cecff88;background:#071a2ddd;color:white;border-radius:14px;padding:12px 16px;font-weight:800;font-size:16px}
+#panel{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#03071199;padding:22px}
+.dialog{width:min(440px,100%);background:linear-gradient(160deg,#17253c,#080d18);border:1px solid #49dff077;border-radius:24px;padding:24px;text-align:center;box-shadow:0 20px 80px #000b}
+.dialog h1{margin:0 0 8px;font-size:30px;letter-spacing:2px}.dialog p{color:#c4d5e8;line-height:1.5;font-size:14px}
+.primary{border:0;border-radius:14px;background:linear-gradient(90deg,#00c9e8,#3578ff);color:#00101b;font-weight:1000;padding:14px 24px;font-size:16px;width:100%;margin-top:10px}
+.gifts{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;margin-top:14px}.gifts button{pointer-events:auto;background:#101f35;border:1px solid #5ce5f277;color:#fff;border-radius:12px;padding:9px;font-size:12px}
+#toast{position:fixed;left:50%;top:24%;transform:translate(-50%,-50%);font-size:22px;font-weight:1000;text-shadow:0 3px 14px #000;opacity:0;transition:opacity .2s;pointer-events:none;text-align:center}
+#status{font-size:10px;color:#a8bacd}
+@media(orientation:landscape){.brand{font-size:16px}.bottom{padding-bottom:5px}}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+</head>
+<body>
+<div id="game"></div>
+<div class="hud">
+ <div class="top">
+  <div class="brand">MOISEY LIVE<small>GIFT CONTROLLED 3D RUNNER</small></div>
+  <div class="stats">
+   <div class="pill stat">DISTANCE<b id="distance">0 m</b></div>
+   <div class="pill stat">SCORE<b id="score">0</b></div>
+  </div>
+ </div>
+ <div class="bottom">
+  <div class="hint">Swipe ◀ ▶ to move · Swipe up to jump · Swipe down to slide<br><span id="status">Demo mode · waiting for game bridge</span></div>
+  <div class="controls"><button class="ctrl" id="left">◀</button><button class="ctrl" id="jump">⬆</button><button class="ctrl" id="right">▶</button></div>
+ </div>
+</div>
+<div id="toast"></div>
+<div id="panel"><div class="dialog"><h1>MOISEY LIVE</h1><p>Тичай по трасето, избягвай препятствията и събирай енергия. Подаръците могат да задействат игрови ефекти чрез свързан LIVE bridge.</p><p><b>Това е първа играема 3D версия.</b> Бутоните по-долу тестват ефектите локално.</p><button class="primary" id="start">СТАРТИРАЙ ИГРАТА</button><div class="gifts"><button data-gift="Rose">🌹 Rose · ускорение</button><button data-gift="Heart">❤️ Heart · щит</button><button data-gift="GG">🎮 GG · бонус точки</button><button data-gift="Lion">🦁 Lion · чисти трасето</button></div></div></div>
+<script type="module">
+import * as THREE from 'three';
+const mount=document.querySelector('#game');
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x07101c);scene.fog=new THREE.Fog(0x07101c,24,105);
+const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,.1,180);camera.position.set(0,5.2,9.5);camera.lookAt(0,1,0);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;mount.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0x9ddcff,0x182033,2));
+const sun=new THREE.DirectionalLight(0xffffff,2.3);sun.position.set(-5,12,7);sun.castShadow=true;scene.add(sun);
+const mat=(c,r=.7,m=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+const roadMat=mat(0x202c3d),lineMat=mat(0x38dff5,.35,0.25),dark=mat(0x111827),white=mat(0xe9f5ff),red=mat(0xff405e),gold=mat(0xffc247,.35,.25);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(200,200),mat(0x0b1722));floor.rotation.x=-Math.PI/2;floor.position.y=-.16;floor.position.z=-40;scene.add(floor);
+const road=new THREE.Mesh(new THREE.BoxGeometry(9,.18,130),roadMat);road.position.set(0,-.08,-48);road.receiveShadow=true;scene.add(road);
+for(let x of [-1.5,1.5]){const stripe=new THREE.Mesh(new THREE.BoxGeometry(.045,.025,130),lineMat);stripe.position.set(x,.025,-48);scene.add(stripe)}
+for(let x of [-5.2,5.2]){const rail=new THREE.Mesh(new THREE.BoxGeometry(.22,.55,130),dark);rail.position.set(x,.12,-48);scene.add(rail)}
+// city skyline
+for(let i=0;i<34;i++){let z=-i*4-5;for(let side of [-1,1]){let h=2+Math.random()*8,w=1.5+Math.random()*2;let b=new THREE.Mesh(new THREE.BoxGeometry(w,h,2.6),mat(side<0?0x172d42:0x202641));b.position.set(side*(7+Math.random()*3),h/2-.1,z);scene.add(b);for(let y=1;y<h-.5;y+=1.3){let win=new THREE.Mesh(new THREE.BoxGeometry(.12,.22,.08),mat(Math.random()>.5?0x3acde8:0xffc75c));win.position.set(b.position.x+(side<0?w/2:-w/2),y,z+1.34);scene.add(win)}}}
+const player=new THREE.Group();scene.add(player);player.position.set(0,0,3);
+const skin=mat(0xf1c49a),shirt=mat(0x04b9d7),pants=mat(0x18263b),shoe=mat(0xf4f7ff),joint=mat(0x9defff);
+function limb(parent,a,b,r1,r2,material){const d=new THREE.Vector3().subVectors(b,a);const mesh=new THREE.Mesh(new THREE.CylinderGeometry(r2,r1,d.length(),8),material);mesh.position.copy(a).add(b).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());parent.add(mesh);return mesh}
+const torso=new THREE.Mesh(new THREE.BoxGeometry(.62,.82,.34),shirt);torso.position.y=1.35;torso.castShadow=true;player.add(torso);
+const head=new THREE.Mesh(new THREE.SphereGeometry(.25,14,12),skin);head.position.y=2.02;head.castShadow=true;player.add(head);
+const hair=new THREE.Mesh(new THREE.SphereGeometry(.255,12,8,0,Math.PI*2,0,Math.PI*.55),dark);hair.position.y=2.09;player.add(hair);
+const arms=[],legs=[];
+for(let s of [-1,1]){arms.push({s});legs.push({s});}
+function buildRig(){for(let c of [...player.children])if(c.userData.limb)player.remove(c);arms.forEach(o=>{let shoulder=new THREE.Vector3(o.s*.39,1.62,0),elbow=new THREE.Vector3(o.s*.52,1.18,0),hand=new THREE.Vector3(o.s*.48,.91,.04);let u=limb(player,shoulder,elbow,.105,.09,shirt),l=limb(player,elbow,hand,.085,.065,skin);u.userData.limb=l.userData.limb=true;o.upper=u;o.lower=l;o.base=[shoulder,elbow,hand]});legs.forEach(o=>{let hip=new THREE.Vector3(o.s*.19,.96,0),knee=new THREE.Vector3(o.s*.2,.5,0),ankle=new THREE.Vector3(o.s*.2,.12,0);o.upper=limb(player,hip,knee,.14,.11,pants);o.lower=limb(player,knee,ankle,.105,.08,pants);let foot=new THREE.Mesh(new THREE.BoxGeometry(.24,.13,.38),shoe);foot.position.set(o.s*.2,.08,.12);player.add(foot);o.foot=foot})}buildRig();
+function setLimb(mesh,a,b,r1,r2){let d=new THREE.Vector3().subVectors(b,a);mesh.geometry.dispose();mesh.geometry=new THREE.CylinderGeometry(r2,r1,d.length(),8);mesh.position.copy(a).add(b).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize())}
+const obstacles=[],orbs=[];let lane=0,speed=17,score=0,distance=0,running=false,over=false,shield=0,boost=0,spawn=0,anim=0;
+function boxObstacle(z,laneIndex,type){let g=new THREE.Group();let color=type==='car'?0xe34355:type==='barrier'?0xffb83f:0x8796a8;let body=new THREE.Mesh(new THREE.BoxGeometry(type==='car'?1.5:1.15,type==='car'?.9:1.2,type==='car'?2.1:.6),mat(color,.35,.25));body.position.y=type==='car'?.62:.6;body.castShadow=true;g.add(body);if(type==='car'){for(let x of [-.58,.58])for(let y of [.25,.9]){let w=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,.12,10),dark);w.rotation.z=Math.PI/2;w.position.set(x,y,.55);g.add(w)}}g.position.set((laneIndex-1)*2.6,0,z);scene.add(g);obstacles.push({g,lane:laneIndex,type,hit:false})}
+function orb(z,laneIndex){let g=new THREE.Mesh(new THREE.IcosahedronGeometry(.25,1),gold);g.position.set((laneIndex-1)*2.6,1.2,z);scene.add(g);orbs.push(g)}
+function spawnWave(){let l=Math.floor(Math.random()*3),t=Math.random();boxObstacle(-75,l,t<.35?'car':t<.7?'barrier':'block');if(Math.random()>.4)orb(-82,Math.floor(Math.random()*3));}
+function toast(t){let el=document.querySelector('#toast');el.textContent=t;el.style.opacity=1;clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.style.opacity=0,1300)}
+function gift(name){if(name.toLowerCase().includes('rose')){boost=4;score+=25;toast('🌹 ROSE — TURBO!')}else if(name.toLowerCase().includes('heart')){shield=8;toast('❤️ HEART — SHIELD!')}else if(name.toLowerCase().includes('gg')){score+=250;toast('🎮 GG — +250!')}else if(name.toLowerCase().includes('lion')){obstacles.forEach(o=>{scene.remove(o.g)});obstacles.length=0;score+=500;toast('🦁 LION — CLEAR ROAD!')}else{score+=10;toast('🎁 GIFT RECEIVED!')}document.querySelector('#score').textContent=score}
+function move(d){if(!running)return;lane=Math.max(0,Math.min(2,lane+d))}
+function jump(){if(running&&player.position.y<.05)player.userData.vy=7.8}
+function slide(){if(running){player.userData.slide=.55}}
+document.querySelector('#left').onclick=()=>move(-1);document.querySelector('#right').onclick=()=>move(1);document.querySelector('#jump').onclick=jump;
+document.querySelectorAll('[data-gift]').forEach(b=>b.onclick=()=>gift(b.dataset.gift));
+document.querySelector('#start').onclick=()=>{document.querySelector('#panel').style.display='none';if(over)reset();running=true};
+function reset(){obstacles.forEach(o=>scene.remove(o.g));obstacles.length=0;orbs.forEach(o=>scene.remove(o));orbs.length=0;score=0;distance=0;speed=17;lane=1;player.position.set(0,0,3);over=false;shield=0;boost=0;document.querySelector('#score').textContent='0';document.querySelector('#distance').textContent='0 m'}
+function end(){running=false;over=true;document.querySelector('#panel').style.display='flex';document.querySelector('.dialog h1').textContent='ИГРАТА ПРИКЛЮЧИ';document.querySelector('.dialog p').textContent='Резултат: '+score+' точки · '+Math.floor(distance)+' метра. Опитай отново!';document.querySelector('#start').textContent='ИГРАЙ ОТНОВО'}
+let touch=null;addEventListener('touchstart',e=>{if(e.target.closest('button'))return;touch={x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY}}, {passive:true});addEventListener('touchend',e=>{if(!touch)return;let dx=e.changedTouches[0].clientX-touch.x,dy=e.changedTouches[0].clientY-touch.y;if(Math.abs(dx)>28||Math.abs(dy)>28){if(Math.abs(dx)>Math.abs(dy))move(dx>0?1:-1);else if(dy<0)jump();else slide()}touch=null},{passive:true});
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')move(-1);if(e.key==='ArrowRight'||e.key==='d')move(1);if(e.key==='ArrowUp'||e.key===' ')jump();if(e.key==='ArrowDown')slide()});
+let ws;function connectBridge(){let url=new URLSearchParams(location.search).get('bridge');if(!url)return;try{ws=new WebSocket(url);ws.onopen=()=>document.querySelector('#status').textContent='LIVE bridge connected';ws.onclose=()=>document.querySelector('#status').textContent='Bridge disconnected · demo controls available';ws.onerror=()=>document.querySelector('#status').textContent='Bridge error';ws.onmessage=e=>{try{let m=JSON.parse(e.data);if(m.type==='gift'||m.event==='gift')gift(m.giftName||m.gift_name||m.name||'gift')}catch{}}}catch{}}
+connectBridge();
+const clock=new THREE.Clock();
+function frame(){requestAnimationFrame(frame);let dt=Math.min(clock.getDelta(),.04);anim+=dt*speed;
+if(running){distance+=speed*dt;score+=Math.floor(speed*dt*.15);speed=Math.min(27,17+distance*.006);if(boost>0){boost-=dt;speed=25}spawn+=dt;if(spawn>Math.max(.72,1.35-distance*.0007)){spawn=0;spawnWave()}
+let target=(lane-1)*2.6;player.position.x+=(target-player.position.x)*Math.min(1,dt*12);
+let vy=player.userData.vy||0;player.position.y+=vy*dt;if(player.position.y<=0){player.position.y=0;vy=0}else vy-=19*dt;player.userData.vy=vy;
+let sliding=player.userData.slide||0;if(sliding>0){player.userData.slide=sliding-dt;player.scale.y=.55}else player.scale.y+=(1-player.scale.y)*dt*8;
+torso.rotation.x=Math.sin(anim*1.5)*.035;legs.forEach((o,i)=>{let a=Math.sin(anim*.8+i*Math.PI)*.55;setLimb(o.upper,new THREE.Vector3(o.s*.19,.96,0),new THREE.Vector3(o.s*.2,.5+a,0),.14,.11);setLimb(o.lower,new THREE.Vector3(o.s*.2,.5+a,0),new THREE.Vector3(o.s*.2,.12,0),.105,.08);o.foot.rotation.x=a*.5});arms.forEach((o,i)=>{let a=Math.sin(anim*.8+i*Math.PI)*.42;setLimb(o.upper,new THREE.Vector3(o.s*.39,1.62,0),new THREE.Vector3(o.s*.52,1.18+a,0),.105,.09);setLimb(o.lower,new THREE.Vector3(o.s*.52,1.18+a,0),new THREE.Vector3(o.s*.48,.91,0),.085,.065)});
+for(let i=obstacles.length-1;i>=0;i--){let o=obstacles[i];o.g.position.z+=speed*dt;if(o.g.position.z>4.1){if(!o.hit&&o.lane===lane&&player.position.y<.8&&player.userData.slide<=0){if(shield>0){shield=0;toast('🛡️ SHIELD SAVED YOU')}else{end()}}scene.remove(o.g);obstacles.splice(i,1)}}
+for(let i=orbs.length-1;i>=0;i--){let o=orbs[i];o.position.z+=speed*dt;o.rotation.y+=dt*2;if(o.position.z>3.5){if(Math.abs(o.position.x-player.position.x)<1&&player.position.y<1.8)score+=20;scene.remove(o);orbs.splice(i,1)}}
+if(shield>0)shield-=dt;document.querySelector('#distance').textContent=Math.floor(distance)+' m';document.querySelector('#score').textContent=score;
+}
+camera.position.x+=(player.position.x*.22-camera.position.x)*dt*2;camera.lookAt(player.position.x*.18,1,-1);
+renderer.render(scene,camera)}
+frame();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body></html>
